@@ -125,6 +125,20 @@ node scripts/chart.mjs --type line \
 
 ![Reference line chart](readme-assets/framed-hline.png)
 
+### 🎨 Conditional Colors
+
+Color bars/points based on a threshold — great for KPI dashboards.
+
+```bash
+node scripts/chart.mjs --type bar \
+  --data '[{"month":"Jan","score":72},{"month":"Feb","score":45},{"month":"Mar","score":38},{"month":"Apr","score":61},{"month":"May","score":29},{"month":"Jun","score":55},{"month":"Jul","score":82},{"month":"Aug","score":47},{"month":"Sep","score":68},{"month":"Oct","score":34},{"month":"Nov","score":76},{"month":"Dec","score":91}]' \
+  --x-field month --y-field score --x-sort none \
+  --conditional-color "50,#e63946,#2a9d8f" --hline "50,#888,Target" \
+  --title "Monthly Performance Score" --subtitle "Target: 50" --dark
+```
+
+![Conditional color chart](readme-assets/framed-conditional.png)
+
 ### More Chart Types
 
 - **`point`** — Scatter plot
