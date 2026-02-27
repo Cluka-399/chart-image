@@ -1,6 +1,6 @@
 ---
 name: chart-image
-version: 2.4.0
+version: 2.5.0
 description: Generate publication-quality chart images from data. Supports line, bar, area, point, candlestick, pie/donut, heatmap, multi-series, and stacked charts. Use when visualizing data, creating graphs, plotting time series, or generating chart images for reports/alerts. Designed for Fly.io/VPS deployments - no native compilation, no Puppeteer, no browser required. Pure Node.js with prebuilt binaries.
 provides:
   - capability: chart-generation

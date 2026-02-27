@@ -139,6 +139,20 @@ node scripts/chart.mjs --type bar \
 
 ![Conditional color chart](readme-assets/framed-conditional.png)
 
+### ↔️ Horizontal Bar Charts
+
+Flip axes for leaderboards, rankings, or long category names.
+
+```bash
+node scripts/chart.mjs --type bar \
+  --data '[{"lang":"Python","stars":95},{"lang":"JavaScript","stars":82},{"lang":"TypeScript","stars":78},{"lang":"Rust","stars":71},{"lang":"Go","stars":63},{"lang":"Java","stars":58},{"lang":"C++","stars":45},{"lang":"Swift","stars":38}]' \
+  --x-field lang --y-field stars --horizontal --sort desc \
+  --conditional-color "60,#e63946,#2a9d8f" --bar-labels \
+  --title "GitHub Stars by Language" --dark
+```
+
+![Horizontal bar chart](readme-assets/framed-horizontal-bar.png)
+
 ### More Chart Types
 
 - **`point`** — Scatter plot
@@ -297,5 +311,5 @@ MIT
 ---
 
 <p align="center">
-  <sub>Built by <a href="https://clawhub.ai/u/Cluka-399">@Cluka-399</a> · Published on <a href="https://clawhub.ai">ClawHub</a></sub>
+  <sub>Built by <a href="https://clawhub.ai/u/Cluka-399">@Cluka-399</a> · Published on <a href="https://clawhub.ai">ClawHub</a> · <a href="https://github.com/Cluka-399/chart-image">GitHub</a></sub>
 </p>

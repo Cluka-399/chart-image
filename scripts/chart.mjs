@@ -81,6 +81,7 @@ STYLING:
 SORTING:
   --sort            Sort bars by value: asc, desc (bar charts only)
   --bar-labels      Show value labels on top of every bar (bar charts only)
+  --horizontal      Horizontal bar chart (categories on Y axis, values on X)
   --gradient        Gradient fill for area charts (fades from color to background)
   --transparent     Transparent background (useful for embedding)
   --bg-color COLOR  Custom background color (hex, e.g. #f0f0f0)
@@ -171,7 +172,7 @@ function parseArgs(args) {
     
     switch (arg) {
       case '--help': case '-h': showHelp(); break;
-      case '--version': case '-v': console.log('chart.mjs v2.2.0'); process.exit(0); break;
+      case '--version': case '-v': console.log('chart.mjs v2.5.0'); process.exit(0); break;
       case '--type': opts.type = next; i++; break;
       case '--data': opts.data = parseDataArg(next); i++; break;
       case '--spec': opts.specFile = next; i++; break;
@@ -242,6 +243,7 @@ function parseArgs(args) {
       case '--csv': opts.data = parseCsv(next); i++; break;  // Inline CSV string
       case '--csv-file': opts.data = parseCsv(readFileSync(next, 'utf8')); i++; break;  // CSV file path
       case '--zero-baseline': case '--zero': opts.zeroBaseline = true; break;  // Force Y axis to start at 0
+      case '--horizontal': opts.horizontal = true; break;  // Horizontal bar chart (swap x/y axes)
       case '--conditional-color': {
         // Format: "threshold,belowColor,aboveColor" or "threshold" (uses red/green defaults)
         const ccParts = next.split(',');
@@ -1077,6 +1079,24 @@ function buildSpec(opts) {
     }
   }
 
+  // Horizontal bar chart: swap x and y encoding
+  if (opts.horizontal && opts.type === 'bar') {
+    const origX = mainLayer.encoding.x;
+    const origY = mainLayer.encoding.y;
+    mainLayer.encoding.x = { ...origY, axis: origY.axis || {} };
+    mainLayer.encoding.y = {
+      field: origX.field,
+      type: origX.type || 'ordinal',
+      title: origX.title,
+      axis: { labelAngle: 0 },
+      ...(opts.sort ? {
+        sort: opts.sort === 'asc' ? { field: opts.yField, order: 'ascending' }
+             : opts.sort === 'desc' ? { field: opts.yField, order: 'descending' }
+             : null
+      } : {})
+    };
+  }
+
   const layers = [mainLayer];
 
   // Conditional color: add colored points layer for line charts
@@ -1110,26 +1130,40 @@ function buildSpec(opts) {
       if (yFormat2 === '~s') return v >= 1e6 ? `${(v/1e6).toFixed(1)}M` : v >= 1e3 ? `${(v/1e3).toFixed(1)}K` : `${v}`;
       return typeof v === 'number' ? (Number.isInteger(v) ? `${v}` : v.toFixed(1)) : `${v}`;
     };
+    const isHoriz = opts.horizontal;
     layers.push({
       mark: {
         type: 'text',
-        align: 'center',
-        dy: -8,
+        align: isHoriz ? 'left' : 'center',
+        ...(isHoriz ? { dx: 4 } : { dy: -8 }),
         fontSize: 11,
         fontWeight: 'bold',
         color: theme.text
       },
       encoding: {
-        x: {
-          field: opts.xField,
-          type: xAxisType,
-          ...(opts.sort && opts.type === 'bar' ? {
-            sort: opts.sort === 'desc' ? { field: opts.yField, order: 'descending' }
-                 : opts.sort === 'asc' ? { field: opts.yField, order: 'ascending' }
-                 : null
-          } : {})
-        },
-        y: { field: opts.yField, type: 'quantitative' },
+        ...(isHoriz ? {
+          x: { field: opts.yField, type: 'quantitative' },
+          y: {
+            field: opts.xField,
+            type: xAxisType,
+            ...(opts.sort ? {
+              sort: opts.sort === 'desc' ? { field: opts.yField, order: 'descending' }
+                   : opts.sort === 'asc' ? { field: opts.yField, order: 'ascending' }
+                   : null
+            } : {})
+          }
+        } : {
+          x: {
+            field: opts.xField,
+            type: xAxisType,
+            ...(opts.sort && opts.type === 'bar' ? {
+              sort: opts.sort === 'desc' ? { field: opts.yField, order: 'descending' }
+                   : opts.sort === 'asc' ? { field: opts.yField, order: 'ascending' }
+                   : null
+            } : {})
+          },
+          y: { field: opts.yField, type: 'quantitative' }
+        }),
         text: { field: opts.yField, type: 'quantitative', format: yFormat2 || '' }
       }
     });
