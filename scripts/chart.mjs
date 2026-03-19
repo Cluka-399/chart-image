@@ -21,6 +21,7 @@
  *   --y-title    Y axis title
  *   --color      Line/bar color (default: #e63946)
  *   --y-domain   Y axis domain as "min,max" (e.g., "0,100")
+ *   --y-pad      Add vertical padding as a fraction of data range (e.g. 0.1 = 10%)
  *   --svg        Output SVG instead of PNG
  */
 
@@ -56,6 +57,7 @@ BASIC OPTIONS:
   --output      Output file path (default: chart.png)
   --title       Chart title
   --subtitle    Chart subtitle
+  --title-align Title alignment: start, middle, end (default: start)
   --width       Chart width in pixels (default: 600)
   --height      Chart height in pixels (default: 300)
   --dark        Dark mode (night-friendly colors)
@@ -67,20 +69,29 @@ DATA FIELDS:
   --x-title     X axis label
   --y-title     Y axis label
   --x-type      X axis type: ordinal, temporal, quantitative
+  --x-format    X axis label format (d3-time-format for temporal, e.g. "%b %d", "%H:%M")
+  --x-sort      X axis order: ascending, descending, none (preserve input order)
+  --x-label-limit PX  Max pixel width for X axis labels before Vega truncates them
+  --y-label-limit PX  Max pixel width for Y axis labels before Vega truncates them
 
 STYLING:
   --color       Primary color (default: #e63946)
   --y-domain    Y axis range as "min,max" (e.g., "0,100")
+  --y-pad       Add vertical padding as a fraction of data range (e.g. 0.1 = 10%)
   --y-format    Y axis format: percent, dollar, compact, integer, decimal2
   --hline       Horizontal line: "value" or "value,color,label"
   --no-grid     Remove gridlines for cleaner look
   --smooth      Smooth/curved lines (monotone interpolation)
+  --no-points   Hide point markers on line charts (cleaner for dense series)
+  --line-width N  Line thickness in pixels for line charts (default: 2)
+  --point-size N Point marker size for line/point charts (default: 60)
   --legend      Legend position: top, bottom, left, right, none
-  --output-size Platform preset: twitter, discord, slack, instagram, story, thumbnail, wide, square
+  --output-size Platform preset: twitter, discord, slack, linkedin, bluesky, youtube, instagram, portrait, story, thumbnail, wide, square
 
 SORTING:
   --sort            Sort bars by value: asc, desc (bar charts only)
   --bar-labels      Show value labels on top of every bar (bar charts only)
+  --bar-radius N    Rounded bar corners in pixels (bar charts)
   --horizontal      Horizontal bar chart (categories on Y axis, values on X)
   --gradient        Gradient fill for area charts (fades from color to background)
   --transparent     Transparent background (useful for embedding)
@@ -88,6 +99,11 @@ SORTING:
   --y-scale TYPE    Y axis scale type: linear (default), log, sqrt, symlog
   --zero-baseline   Force Y axis to start at zero (aka --zero)
   --conditional-color  Color by threshold: "value,belowColor,aboveColor" (default: red/green)
+
+CONFIDENCE BANDS:
+  --band-upper    Upper bound field name (e.g. "upper" or "max")
+  --band-lower    Lower bound field name (e.g. "lower" or "min")
+  --band-color    Band fill color (default: semi-transparent accent)
 
 DUAL AXIS:
   --y2-field        Second Y axis field (independent right axis)
@@ -101,6 +117,7 @@ ANNOTATIONS:
   --focus-change    Zoom Y axis to highlight the change
   --focus-recent N  Focus on last N data points
   --show-values     Label min/max values on chart
+  --last-value      Label the final data point value
 
 MULTI-SERIES:
   --series-field    Field to split data into multiple lines
@@ -150,6 +167,7 @@ function parseArgs(args) {
     svg: false,
     showChange: false,
     sparkline: false,
+    titleAlign: 'start',
   };
   
   // Support shorthand: "Mon:10,Tue:25,Wed:18" → [{x:"Mon",y:10},...]
@@ -172,7 +190,7 @@ function parseArgs(args) {
     
     switch (arg) {
       case '--help': case '-h': showHelp(); break;
-      case '--version': case '-v': console.log('chart.mjs v2.5.0'); process.exit(0); break;
+      case '--version': case '-v': console.log('chart.mjs v2.6.16'); process.exit(0); break;
       case '--type': opts.type = next; i++; break;
       case '--data': opts.data = parseDataArg(next); i++; break;
       case '--spec': opts.specFile = next; i++; break;
@@ -186,6 +204,7 @@ function parseArgs(args) {
       case '--y-title': opts.yTitle = next; i++; break;
       case '--color': opts.color = next; i++; break;
       case '--y-domain': opts.yDomain = next.split(',').map(Number); i++; break;
+      case '--y-pad': opts.yPad = parseFloat(next); i++; break;
       case '--svg': opts.svg = true; break;
       case '--show-change': opts.showChange = true; break;
       case '--annotation': opts.annotation = next; i++; break;
@@ -193,6 +212,7 @@ function parseArgs(args) {
       case '--focus-recent': opts.focusRecent = parseInt(next) || 4; i++; break;
       case '--dark': opts.dark = true; break;
       case '--show-values': opts.showValues = true; break;
+      case '--last-value': opts.lastValue = true; break;
       case '--sparkline': opts.sparkline = true; break;
       case '--stacked': opts.stacked = true; break;
       case '--color-field': opts.colorField = next; i++; break;
@@ -210,6 +230,7 @@ function parseArgs(args) {
       case '--y-category-field': opts.yCategoryField = next; i++; break;
       case '--color-scheme': opts.colorScheme = next; i++; break;
       case '--x-type': opts.xType = next; i++; break;  // ordinal, temporal, quantitative
+      case '--x-sort': opts.xSort = next; i++; break;  // ascending, descending, none
       case '--hline': {
         // Format: "value" or "value,color" or "value,color,label"
         const parts = next.split(',');
@@ -223,15 +244,20 @@ function parseArgs(args) {
       }
       case '--y-format': opts.yFormat = next; i++; break;  // percent, dollar, compact, or d3-format string
       case '--subtitle': opts.subtitle = next; i++; break;
+      case '--title-align': opts.titleAlign = next; i++; break;
       case '--no-grid': opts.noGrid = true; break;
       case '--legend': opts.legend = next; i++; break;  // top, bottom, left, right, none
       case '--x-label-angle': opts.xLabelAngle = parseFloat(next); i++; break;  // X axis label rotation angle
       case '--trend-line': opts.trendLine = true; break;  // Linear regression trend line
       case '--watermark': opts.watermark = next; i++; break;  // Watermark text overlay
       case '--smooth': opts.smooth = true; break;  // Smooth/curved line interpolation (monotone)
-      case '--output-size': opts.outputSize = next; i++; break;  // Size preset: twitter, discord, slack, instagram, thumbnail
+      case '--no-points': opts.noPoints = true; break;  // Hide point markers on line charts
+      case '--line-width': opts.lineWidth = parseFloat(next) || 2; i++; break;  // Line thickness for line charts
+      case '--point-size': opts.pointSize = parseFloat(next) || 60; i++; break;  // Point marker size for line/point charts
+      case '--output-size': opts.outputSize = next; i++; break;  // Size preset: twitter, discord, slack, linkedin, bluesky, youtube, instagram, portrait, thumbnail
       case '--sort': opts.sort = next; i++; break;  // Sort bars: asc, desc, none (default: none)
       case '--bar-labels': opts.barLabels = true; break;  // Show value on every bar
+      case '--bar-radius': opts.barRadius = parseFloat(next) || 0; i++; break;  // Rounded bar corners in pixels
       case '--gradient': opts.gradient = true; break;  // Gradient fill for area charts (top-to-bottom fade)
       case '--y-scale': opts.yScale = next; i++; break;  // Y axis scale: linear (default), log, sqrt, symlog
       case '--y2-field': opts.y2Field = next; i++; break;  // Second Y axis field (dual-axis)
@@ -242,8 +268,14 @@ function parseArgs(args) {
       case '--bg-color': opts.bgColor = next; i++; break;  // Custom background color
       case '--csv': opts.data = parseCsv(next); i++; break;  // Inline CSV string
       case '--csv-file': opts.data = parseCsv(readFileSync(next, 'utf8')); i++; break;  // CSV file path
+      case '--x-format': opts.xFormat = next; i++; break;  // X axis format (d3-time-format for temporal, e.g. "%b %d", "%H:%M")
+      case '--x-label-limit': opts.xLabelLimit = parseFloat(next); i++; break;  // Max pixel width before X labels get truncated
+      case '--y-label-limit': opts.yLabelLimit = parseFloat(next); i++; break;  // Max pixel width before Y labels get truncated
       case '--zero-baseline': case '--zero': opts.zeroBaseline = true; break;  // Force Y axis to start at 0
       case '--horizontal': opts.horizontal = true; break;  // Horizontal bar chart (swap x/y axes)
+      case '--band-upper': opts.bandUpper = next; i++; break;  // Upper bound field for confidence band
+      case '--band-lower': opts.bandLower = next; i++; break;  // Lower bound field for confidence band
+      case '--band-color': opts.bandColor = next; i++; break;  // Band fill color (default: accent with opacity)
       case '--conditional-color': {
         // Format: "threshold,belowColor,aboveColor" or "threshold" (uses red/green defaults)
         const ccParts = next.split(',');
@@ -275,7 +307,16 @@ function parseArgs(args) {
       'discord':     { w: 800,  h: 400 },   // Discord embed
       'discord-embed': { w: 800, h: 400 },  // Alias
       'slack':       { w: 800,  h: 450 },   // Slack unfurl
+      'linkedin':    { w: 1200, h: 627 },   // LinkedIn / OG aspect-ratio preset
+      'linkedin-og': { w: 1200, h: 627 },   // Alias
+      'bluesky':     { w: 1200, h: 627 },   // Bluesky landscape social post / share card
+      'bsky':        { w: 1200, h: 627 },   // Alias
+      'youtube':     { w: 1280, h: 720 },   // YouTube / 16:9 social-share preset
+      'youtube-thumb': { w: 1280, h: 720 }, // Alias
       'instagram':   { w: 1080, h: 1080 },  // Instagram square
+      'portrait':    { w: 1080, h: 1350 },  // Instagram portrait / Threads 4:5
+      'instagram-portrait': { w: 1080, h: 1350 }, // Alias
+      'threads':     { w: 1080, h: 1350 },  // Alias
       'story':       { w: 1080, h: 1920 },  // Instagram/TikTok story 9:16
       'thumbnail':   { w: 320,  h: 180 },   // Small thumbnail
       'wide':        { w: 1200, h: 400 },   // Wide banner
@@ -296,8 +337,8 @@ function parseArgs(args) {
 
 // Read from stdin if no data provided
 // Parse CSV string into array of objects (auto-detect numeric fields)
-// RFC 4180-compliant CSV parser — handles quoted fields with commas, newlines, escaped quotes
-function parseCsvLine(line) {
+// RFC 4180-compliant CSV/TSV parser — handles quoted fields with commas/tabs, newlines, escaped quotes
+function parseDelimitedLine(line, separator = ',') {
   const fields = [];
   let i = 0, field = '', inQuotes = false;
   while (i < line.length) {
@@ -308,7 +349,7 @@ function parseCsvLine(line) {
       else { field += ch; i++; }
     } else {
       if (ch === '"') { inQuotes = true; i++; }
-      else if (ch === ',') { fields.push(field); field = ''; i++; }
+      else if (ch === separator) { fields.push(field); field = ''; i++; }
       else { field += ch; i++; }
     }
   }
@@ -316,23 +357,58 @@ function parseCsvLine(line) {
   return fields;
 }
 
+function splitDelimitedRecords(str) {
+  const records = [];
+  let record = '';
+  let i = 0;
+  let inQuotes = false;
+
+  while (i < str.length) {
+    const ch = str[i];
+
+    if (ch === '"') {
+      record += ch;
+      if (inQuotes && str[i + 1] === '"') {
+        record += '"';
+        i += 2;
+        continue;
+      }
+      inQuotes = !inQuotes;
+      i++;
+      continue;
+    }
+
+    if ((ch === '\n' || ch === '\r') && !inQuotes) {
+      if (record.trim() !== '') records.push(record);
+      record = '';
+      if (ch === '\r' && str[i + 1] === '\n') i += 2;
+      else i++;
+      continue;
+    }
+
+    record += ch;
+    i++;
+  }
+
+  if (record.trim() !== '') records.push(record);
+  return records;
+}
+
 function parseCsv(str) {
   // Strip UTF-8 BOM (common in Excel-exported CSVs)
   if (str.charCodeAt(0) === 0xFEFF) str = str.slice(1);
-  // Handle TSV auto-detection: if first line has tabs but no commas, treat as TSV
-  const firstLine = str.trim().split('\n')[0];
-  const sep = (firstLine.includes('\t') && !firstLine.includes(',')) ? '\t' : null;
+  const trimmed = str.trim();
+  if (!trimmed) return [];
 
-  const lines = str.trim().split('\n').map(l => l.trim()).filter(Boolean);
-  if (lines.length < 2) return [];
+  // Handle TSV auto-detection: if first record has tabs but no commas, treat as TSV
+  const firstRecord = splitDelimitedRecords(trimmed)[0] || '';
+  const separator = (firstRecord.includes('\t') && !firstRecord.includes(',')) ? '\t' : ',';
+  const records = splitDelimitedRecords(trimmed);
+  if (records.length < 2) return [];
 
-  const parseRow = sep
-    ? (line) => line.split(sep).map(v => v.trim().replace(/^["']|["']$/g, ''))
-    : parseCsvLine;
-
-  const headers = parseRow(lines[0]).map(h => h.trim());
-  return lines.slice(1).map(line => {
-    const vals = parseRow(line);
+  const headers = parseDelimitedLine(records[0], separator).map(h => h.trim());
+  return records.slice(1).map(record => {
+    const vals = parseDelimitedLine(record, separator);
     const row = {};
     headers.forEach((h, i) => {
       const raw = (vals[i] || '').trim();
@@ -376,6 +452,37 @@ function resolveYFormat(fmt) {
   return shortcuts[fmt] || fmt;  // Allow raw d3-format strings
 }
 
+function resolveTitleAnchor(opts, fallback = 'start') {
+  const allowed = new Set(['start', 'middle', 'end']);
+  return allowed.has(opts.titleAlign) ? opts.titleAlign : fallback;
+}
+
+function applyYPadToValues(values, opts) {
+  if (!Array.isArray(values) || values.length === 0 || opts.yPad === undefined || opts.yPad === null || opts.yDomain) {
+    return null;
+  }
+
+  const finiteValues = values.map(Number).filter(Number.isFinite);
+  if (finiteValues.length === 0) return null;
+
+  const rawPad = Number(opts.yPad);
+  if (!Number.isFinite(rawPad) || rawPad < 0) return null;
+
+  const padFraction = rawPad > 1 ? rawPad / 100 : rawPad;
+  const min = Math.min(...finiteValues);
+  const max = Math.max(...finiteValues);
+  const range = max - min;
+  const baseline = range === 0 ? Math.max(Math.abs(max), 1) : range;
+  const padding = baseline * padFraction;
+
+  let yMin = min - padding;
+  const yMax = max + padding;
+
+  if (opts.zeroBaseline && min >= 0) yMin = 0;
+
+  return [yMin, yMax];
+}
+
 // Build Vega-Lite spec from options
 function buildSpec(opts) {
   // Theme colors
@@ -395,9 +502,15 @@ function buildSpec(opts) {
     negative: '#ef4444',
   };
   
+  const lineWidth = (typeof opts.lineWidth === 'number' && Number.isFinite(opts.lineWidth) && opts.lineWidth > 0) ? opts.lineWidth : 2;
+  const pointSize = (typeof opts.pointSize === 'number' && Number.isFinite(opts.pointSize) && opts.pointSize > 0) ? opts.pointSize : 60;
+  const barRadius = (typeof opts.barRadius === 'number' && Number.isFinite(opts.barRadius) && opts.barRadius > 0) ? opts.barRadius : 0;
+
+  const linePointConfig = opts.noPoints ? false : { size: pointSize, filled: true };
+
   const markConfig = {
-    line: { type: 'line', point: true, color: theme.accent, strokeWidth: 2, ...(opts.smooth ? { interpolate: 'monotone' } : {}) },
-    bar: { type: 'bar', color: theme.accent },
+    line: { type: 'line', point: linePointConfig, color: theme.accent, strokeWidth: lineWidth, ...(opts.smooth ? { interpolate: 'monotone' } : {}) },
+    bar: { type: 'bar', color: theme.accent, ...(barRadius ? { cornerRadius: barRadius } : {}) },
     area: {
       type: 'area',
       ...(opts.gradient
@@ -406,7 +519,7 @@ function buildSpec(opts) {
       line: { color: theme.accent },
       ...(opts.smooth ? { interpolate: 'monotone' } : {})
     },
-    point: { type: 'point', color: theme.accent, size: 100 },
+    point: { type: 'point', color: theme.accent, size: pointSize },
     candlestick: null, // Handled separately as composite chart
   };
   
@@ -448,7 +561,7 @@ function buildSpec(opts) {
     };
     
     if (opts.title) {
-      pieSpec.title = { text: opts.title, anchor: 'middle', color: theme.text };
+      pieSpec.title = { text: opts.title, anchor: resolveTitleAnchor(opts, 'middle'), color: theme.text };
     }
     
     // Add labels if showValues
@@ -544,7 +657,7 @@ function buildSpec(opts) {
     };
     
     if (opts.title) {
-      heatmapSpec.title = { text: opts.title, anchor: 'start', color: theme.text };
+      heatmapSpec.title = { text: opts.title, anchor: resolveTitleAnchor(opts, 'start'), color: theme.text };
     }
     
     // Add value labels if showValues
@@ -618,7 +731,7 @@ function buildSpec(opts) {
         },
         // Body (open-close bar)
         {
-          mark: { type: 'bar', width: { band: 0.6 } },
+          mark: { type: 'bar', width: { band: 0.6 }, ...(barRadius ? { cornerRadius: barRadius } : {}) },
           encoding: {
             x: { field: opts.xField, type: 'ordinal' },
             y: { field: openField, type: 'quantitative' },
@@ -646,7 +759,7 @@ function buildSpec(opts) {
     };
     
     if (opts.title) {
-      candleSpec.title = { text: opts.title, anchor: 'start', color: theme.text };
+      candleSpec.title = { text: opts.title, anchor: resolveTitleAnchor(opts, 'start'), color: theme.text };
     }
     
     if (opts.yDomain || opts.yScale || opts.zeroBaseline) {
@@ -671,7 +784,7 @@ function buildSpec(opts) {
       background: theme.bg,
       padding: { left: 10, right: 10, top: 10, bottom: 10 },
       data: { values: opts.data },
-      mark: { type: 'bar' },
+      mark: { type: 'bar', ...(barRadius ? { cornerRadius: barRadius } : {}) },
       encoding: {
         x: {
           field: opts.xField,
@@ -712,7 +825,7 @@ function buildSpec(opts) {
     };
     
     if (opts.title) {
-      stackedSpec.title = { text: opts.title, anchor: 'start', color: theme.text };
+      stackedSpec.title = { text: opts.title, anchor: resolveTitleAnchor(opts, 'start'), color: theme.text };
     }
     
     return stackedSpec;
@@ -727,7 +840,7 @@ function buildSpec(opts) {
       background: theme.bg,
       padding: { left: 10, right: 10, top: 10, bottom: 10 },
       data: { values: opts.data },
-      mark: { type: 'line', point: true, strokeWidth: 2, ...(opts.smooth ? { interpolate: 'monotone' } : {}) },
+      mark: { type: 'line', point: linePointConfig, strokeWidth: lineWidth, ...(opts.smooth ? { interpolate: 'monotone' } : {}) },
       encoding: {
         x: {
           field: opts.xField,
@@ -768,7 +881,7 @@ function buildSpec(opts) {
     };
     
     if (opts.title) {
-      multiSpec.title = { text: opts.title, anchor: 'start', color: theme.text };
+      multiSpec.title = { text: opts.title, anchor: resolveTitleAnchor(opts, 'start'), color: theme.text };
     }
     
     return multiSpec;
@@ -815,7 +928,7 @@ function buildSpec(opts) {
       layer: [
         // Volume bars (behind, on secondary y-axis)
         {
-          mark: { type: 'bar', color: volumeColor, opacity: 0.4 },
+          mark: { type: 'bar', color: volumeColor, opacity: 0.4, ...(barRadius ? { cornerRadius: barRadius } : {}) },
           encoding: {
             x: {
               field: opts.xField,
@@ -838,7 +951,7 @@ function buildSpec(opts) {
         },
         // Price line (front, on primary y-axis)
         {
-          mark: { type: 'line', point: true, color: theme.accent, strokeWidth: 2 },
+          mark: { type: 'line', point: linePointConfig, color: theme.accent, strokeWidth: lineWidth },
           encoding: {
             x: { field: opts.xField, type: 'ordinal' },
             y: {
@@ -895,7 +1008,7 @@ function buildSpec(opts) {
     }
     
     if (opts.title) {
-      volumeSpec.title = { text: opts.title, anchor: 'start', color: theme.text };
+      volumeSpec.title = { text: opts.title, anchor: resolveTitleAnchor(opts, 'start'), color: theme.text };
     }
     
     return volumeSpec;
@@ -925,7 +1038,7 @@ function buildSpec(opts) {
       layer: [
         // Primary Y axis (left)
         {
-          mark: { type: opts.type || 'line', ...(opts.type === 'line' || !opts.type ? { point: true, strokeWidth: 2, ...(opts.smooth ? { interpolate: 'monotone' } : {}) } : {}), color: theme.accent },
+          mark: { type: opts.type || 'line', ...(opts.type === 'line' || !opts.type ? { point: linePointConfig, strokeWidth: lineWidth, ...(opts.smooth ? { interpolate: 'monotone' } : {}) } : {}), color: theme.accent },
           encoding: {
             x: {
               field: opts.xField,
@@ -951,7 +1064,7 @@ function buildSpec(opts) {
         },
         // Secondary Y axis (right)
         {
-          mark: { type: y2Mark, ...(y2Mark === 'line' ? { point: true, strokeWidth: 2, ...(opts.smooth ? { interpolate: 'monotone' } : {}) } : { opacity: 0.5 }), color: y2Color },
+          mark: { type: y2Mark, ...(y2Mark === 'line' ? { point: linePointConfig, strokeWidth: lineWidth, ...(opts.smooth ? { interpolate: 'monotone' } : {}) } : { opacity: 0.5 }), ...(y2Mark === 'bar' && barRadius ? { cornerRadius: barRadius } : {}), color: y2Color },
           encoding: {
             x: { field: opts.xField, type: xAxisType },
             y: {
@@ -988,7 +1101,7 @@ function buildSpec(opts) {
     if (opts.title) {
       dualSpec.title = {
         text: opts.title,
-        anchor: 'start',
+        anchor: resolveTitleAnchor(opts, 'start'),
         color: theme.text,
         ...(opts.subtitle ? { subtitle: opts.subtitle, subtitleColor: theme.grid, subtitleFontSize: 12 } : {})
       };
@@ -1022,6 +1135,13 @@ function buildSpec(opts) {
     const yMin = Math.max(0, Math.floor(min - padding));
     const yMax = Math.ceil(max + padding);
     opts.yDomain = [yMin, yMax];
+  }
+
+  if (opts.data && opts.data.length > 0) {
+    const yPadFields = [opts.yField, opts.bandUpper, opts.bandLower].filter(Boolean);
+    const yPadValues = opts.data.flatMap(d => yPadFields.map(field => d[field]));
+    const paddedDomain = applyYPadToValues(yPadValues, opts);
+    if (paddedDomain) opts.yDomain = paddedDomain;
   }
   
   // Base layer - the main chart
@@ -1074,7 +1194,7 @@ function buildSpec(opts) {
       // Legend not needed for conditional coloring
     } else {
       // Line charts: neutral line + colored points
-      mainLayer.mark = { type: 'line', strokeWidth: 2, color: opts.dark ? '#888' : '#999', ...(opts.smooth ? { interpolate: 'monotone' } : {}) };
+      mainLayer.mark = { type: 'line', strokeWidth: lineWidth, color: opts.dark ? '#888' : '#999', ...(opts.smooth ? { interpolate: 'monotone' } : {}) };
       delete mainLayer.encoding.color;
     }
   }
@@ -1097,13 +1217,29 @@ function buildSpec(opts) {
     };
   }
 
-  const layers = [mainLayer];
+  const layers = [];
+
+  // Confidence/range band (--band-upper, --band-lower)
+  if (opts.bandUpper && opts.bandLower) {
+    const bandColor = opts.bandColor || (opts.dark ? 'rgba(255,107,107,0.2)' : 'rgba(230,57,70,0.15)');
+    layers.push({
+      mark: { type: 'area', opacity: 1, ...(opts.smooth ? { interpolate: 'monotone' } : {}) },
+      encoding: {
+        x: { ...mainLayer.encoding.x },
+        y: { field: opts.bandUpper, type: 'quantitative' },
+        y2: { field: opts.bandLower },
+        color: { value: bandColor }
+      }
+    });
+  }
+
+  layers.push(mainLayer);
 
   // Conditional color: add colored points layer for line charts
   if (opts.conditionalColor && (!opts.type || opts.type === 'line')) {
     const cc = opts.conditionalColor;
     layers.push({
-      mark: { type: 'point', size: 60, filled: true },
+      mark: { type: 'point', size: pointSize, filled: true },
       encoding: {
         x: { ...mainLayer.encoding.x },
         y: { ...mainLayer.encoding.y },
@@ -1192,6 +1328,37 @@ function buildSpec(opts) {
     });
   }
   
+  // Add last-point label
+  if (opts.lastValue && opts.data && opts.data.length >= 1) {
+    const lastPoint = opts.data[opts.data.length - 1];
+    const fmtLastVal = (v) => {
+      if (!yFormat) return `${v}`;
+      if (yFormat === '.1%') return `${(v * 100).toFixed(1)}%`;
+      if (yFormat === '$,.2f') return `$${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      if (yFormat === ',.4f') return v.toFixed(4);
+      if (yFormat === '.2e') return v.toExponential(2);
+      if (yFormat === '~s') return v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `${(v / 1e3).toFixed(1)}K` : `${v}`;
+      return `${v}`;
+    };
+
+    layers.push({
+      mark: {
+        type: 'text',
+        align: 'left',
+        baseline: 'middle',
+        dx: 8,
+        fontSize: 12,
+        fontWeight: 'bold',
+        color: theme.text
+      },
+      encoding: {
+        x: { datum: lastPoint[opts.xField] },
+        y: { datum: lastPoint[opts.yField] },
+        text: { value: fmtLastVal(lastPoint[opts.yField]) }
+      }
+    });
+  }
+
   // Add value labels at peak points (min and max)
   if (opts.showValues && opts.data && opts.data.length >= 2) {
     const values = opts.data.map(d => d[opts.yField]);
@@ -1328,7 +1495,7 @@ function buildSpec(opts) {
           { _tx: lastPoint[opts.xField], _ty: y1 }
         ]
       },
-      mark: { type: 'line', color: trendColor, strokeWidth: 2, strokeDash: [6, 4], opacity: 0.8 },
+      mark: { type: 'line', color: trendColor, strokeWidth: lineWidth, strokeDash: [6, 4], opacity: 0.8 },
       encoding: {
         x: { field: '_tx', type: xAxisType },
         y: { field: '_ty', type: 'quantitative' }
@@ -1379,6 +1546,9 @@ function buildSpec(opts) {
 
   // Sparkline mode: minimal spec, no axes
   if (opts.sparkline || opts.noAxes) {
+    const sparkLineWidth = (typeof opts.lineWidth === 'number' && Number.isFinite(opts.lineWidth) && opts.lineWidth > 0)
+      ? opts.lineWidth
+      : (opts.sparkline ? 1.5 : 2);
     const sparkSpec = {
       $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
       width: opts.width,
@@ -1390,7 +1560,7 @@ function buildSpec(opts) {
       mark: { 
         type: 'line', 
         color: theme.accent, 
-        strokeWidth: opts.sparkline ? 1.5 : 2 
+        strokeWidth: sparkLineWidth 
       },
       encoding: {
         x: {
@@ -1444,7 +1614,7 @@ function buildSpec(opts) {
   if (opts.title) {
     spec.title = {
       text: opts.title,
-      anchor: 'start',
+      anchor: resolveTitleAnchor(opts, 'start'),
       color: theme.text,
       ...(opts.subtitle ? { subtitle: opts.subtitle, subtitleColor: theme.grid, subtitleFontSize: 12 } : {})
     };
@@ -1500,6 +1670,52 @@ async function main() {
     process.exit(1);
   }
   
+  const walkEncodings = (node, fn) => {
+    if (!node || typeof node !== 'object') return;
+    if (node.encoding) fn(node.encoding);
+    if (Array.isArray(node.layer)) node.layer.forEach(child => walkEncodings(child, fn));
+  };
+
+  // Apply --x-format to x axis encoding (works for temporal axes)
+  if (opts.xFormat) {
+    walkEncodings(spec, (enc) => {
+      if (enc && enc.x) {
+        if (!enc.x.axis) enc.x.axis = {};
+        enc.x.axis.format = opts.xFormat;
+        enc.x.axis.formatType = 'time';
+      }
+    });
+  }
+
+  // Apply --x-label-limit to avoid unreadable/truncated category labels overflowing the chart
+  if (opts.xLabelLimit !== undefined && Number.isFinite(opts.xLabelLimit) && opts.xLabelLimit > 0) {
+    walkEncodings(spec, (enc) => {
+      if (enc && enc.x) {
+        if (!enc.x.axis) enc.x.axis = {};
+        enc.x.axis.labelLimit = opts.xLabelLimit;
+      }
+    });
+  }
+
+  // Apply --y-label-limit to keep long category/value labels from overflowing the chart
+  if (opts.yLabelLimit !== undefined && Number.isFinite(opts.yLabelLimit) && opts.yLabelLimit > 0) {
+    walkEncodings(spec, (enc) => {
+      if (enc && enc.y) {
+        if (!enc.y.axis) enc.y.axis = {};
+        enc.y.axis.labelLimit = opts.yLabelLimit;
+      }
+    });
+  }
+
+  // Apply --x-sort to x axis encoding across chart types
+  if (opts.xSort !== undefined) {
+    walkEncodings(spec, (enc) => {
+      if (enc && enc.x && enc.x.field) {
+        enc.x.sort = opts.xSort === 'none' ? null : opts.xSort;
+      }
+    });
+  }
+
   // Compile Vega-Lite to Vega
   const vgSpec = vegaLite.compile(spec).spec;
   const view = new vega.View(vega.parse(vgSpec), { renderer: 'none' });
