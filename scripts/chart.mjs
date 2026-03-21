@@ -99,6 +99,7 @@ SORTING:
   --y-scale TYPE    Y axis scale type: linear (default), log, sqrt, symlog
   --zero-baseline   Force Y axis to start at zero (aka --zero)
   --conditional-color  Color by threshold: "value,belowColor,aboveColor" (default: red/green)
+  --y2-format       Secondary/right Y axis format: percent, dollar, compact, integer, decimal2
 
 CONFIDENCE BANDS:
   --band-upper    Upper bound field name (e.g. "upper" or "max")
@@ -110,6 +111,7 @@ DUAL AXIS:
   --y2-title        Title for second Y axis
   --y2-color        Color for second series (default: blue)
   --y2-type         Chart type for second axis: line, bar, area (default: line)
+  --y2-format       Right-axis number format for dual-axis/volume charts
 
 ANNOTATIONS:
   --trend-line      Add linear regression trend line (dashed)
@@ -190,7 +192,7 @@ function parseArgs(args) {
     
     switch (arg) {
       case '--help': case '-h': showHelp(); break;
-      case '--version': case '-v': console.log('chart.mjs v2.6.16'); process.exit(0); break;
+      case '--version': case '-v': console.log('chart.mjs v2.6.17'); process.exit(0); break;
       case '--type': opts.type = next; i++; break;
       case '--data': opts.data = parseDataArg(next); i++; break;
       case '--spec': opts.specFile = next; i++; break;
@@ -231,6 +233,7 @@ function parseArgs(args) {
       case '--color-scheme': opts.colorScheme = next; i++; break;
       case '--x-type': opts.xType = next; i++; break;  // ordinal, temporal, quantitative
       case '--x-sort': opts.xSort = next; i++; break;  // ascending, descending, none
+      case '--series-order': opts.seriesOrder = next.split(',').map(s => s.trim()).filter(Boolean); i++; break;  // Explicit legend/stack order for multi-series + stacked charts
       case '--hline': {
         // Format: "value" or "value,color" or "value,color,label"
         const parts = next.split(',');
@@ -264,6 +267,7 @@ function parseArgs(args) {
       case '--y2-title': opts.y2Title = next; i++; break;  // Second Y axis title
       case '--y2-color': opts.y2Color = next; i++; break;  // Second Y axis line color
       case '--y2-type': opts.y2Type = next; i++; break;  // Second Y axis chart type: line, bar, area (default: line)
+      case '--y2-format': opts.y2Format = next; i++; break;  // Second/right Y axis number format
       case '--transparent': opts.transparent = true; break;  // Transparent background
       case '--bg-color': opts.bgColor = next; i++; break;  // Custom background color
       case '--csv': opts.data = parseCsv(next); i++; break;  // Inline CSV string
@@ -918,6 +922,8 @@ function buildSpec(opts) {
       changeText = `${sign}${change.toFixed(1)}%`;
     }
     
+    const y2Format = resolveYFormat(opts.y2Format);
+
     const volumeSpec = {
       $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
       width: opts.width,
@@ -943,7 +949,8 @@ function buildSpec(opts) {
                 orient: 'right',
                 titleColor: volumeColor,
                 labelColor: volumeColor,
-                gridColor: 'transparent'  // No grid lines for volume
+                gridColor: 'transparent',  // No grid lines for volume
+                ...(y2Format ? { format: y2Format } : {})
               },
               scale: { zero: true }
             }
@@ -1027,6 +1034,7 @@ function buildSpec(opts) {
     
     const xAxisType = opts.xType || 'ordinal';
     const yFormat = resolveYFormat(opts.yFormat);
+    const y2Format = resolveYFormat(opts.y2Format);
     
     const dualSpec = {
       $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
@@ -1075,7 +1083,8 @@ function buildSpec(opts) {
                 orient: 'right',
                 titleColor: y2Color,
                 labelColor: y2Color,
-                gridColor: 'transparent'
+                gridColor: 'transparent',
+                ...(y2Format ? { format: y2Format } : {})
               }
             }
           }
