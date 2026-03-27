@@ -73,6 +73,9 @@ DATA FIELDS:
   --x-sort      X axis order: ascending, descending, none (preserve input order)
   --x-label-limit PX  Max pixel width for X axis labels before Vega truncates them
   --y-label-limit PX  Max pixel width for Y axis labels before Vega truncates them
+  --x-ticks N    Target tick count for the X axis
+  --y-ticks N    Target tick count for the primary/left Y axis
+  --y2-ticks N   Target tick count for the secondary/right Y axis
 
 STYLING:
   --color       Primary color (default: #e63946)
@@ -86,7 +89,10 @@ STYLING:
   --line-width N  Line thickness in pixels for line charts (default: 2)
   --point-size N Point marker size for line/point charts (default: 60)
   --legend      Legend position: top, bottom, left, right, none
+  --legend-columns N  Wrap legend entries into N columns
+  --legend-label-limit PX  Max pixel width for legend labels before truncation
   --output-size Platform preset: twitter, discord, slack, linkedin, bluesky, youtube, instagram, portrait, story, thumbnail, wide, square
+  --font-family CSS font-family string for chart text (default: Helvetica, Arial, sans-serif)
 
 SORTING:
   --sort            Sort bars by value: asc, desc (bar charts only)
@@ -192,7 +198,7 @@ function parseArgs(args) {
     
     switch (arg) {
       case '--help': case '-h': showHelp(); break;
-      case '--version': case '-v': console.log('chart.mjs v2.6.17'); process.exit(0); break;
+      case '--version': case '-v': console.log('chart.mjs v2.6.23'); process.exit(0); break;
       case '--type': opts.type = next; i++; break;
       case '--data': opts.data = parseDataArg(next); i++; break;
       case '--spec': opts.specFile = next; i++; break;
@@ -250,7 +256,12 @@ function parseArgs(args) {
       case '--title-align': opts.titleAlign = next; i++; break;
       case '--no-grid': opts.noGrid = true; break;
       case '--legend': opts.legend = next; i++; break;  // top, bottom, left, right, none
+      case '--legend-columns': opts.legendColumns = parseInt(next); i++; break;  // Wrap legend entries into columns
+      case '--legend-label-limit': opts.legendLabelLimit = parseFloat(next); i++; break;  // Max pixel width before legend labels get truncated
       case '--x-label-angle': opts.xLabelAngle = parseFloat(next); i++; break;  // X axis label rotation angle
+      case '--x-ticks': opts.xTicks = parseInt(next); i++; break;  // Target X axis tick count
+      case '--y-ticks': opts.yTicks = parseInt(next); i++; break;  // Target primary/left Y axis tick count
+      case '--y2-ticks': opts.y2Ticks = parseInt(next); i++; break;  // Target secondary/right Y axis tick count
       case '--trend-line': opts.trendLine = true; break;  // Linear regression trend line
       case '--watermark': opts.watermark = next; i++; break;  // Watermark text overlay
       case '--smooth': opts.smooth = true; break;  // Smooth/curved line interpolation (monotone)
@@ -258,6 +269,7 @@ function parseArgs(args) {
       case '--line-width': opts.lineWidth = parseFloat(next) || 2; i++; break;  // Line thickness for line charts
       case '--point-size': opts.pointSize = parseFloat(next) || 60; i++; break;  // Point marker size for line/point charts
       case '--output-size': opts.outputSize = next; i++; break;  // Size preset: twitter, discord, slack, linkedin, bluesky, youtube, instagram, portrait, thumbnail
+      case '--font-family': opts.fontFamily = next; i++; break;
       case '--sort': opts.sort = next; i++; break;  // Sort bars: asc, desc, none (default: none)
       case '--bar-labels': opts.barLabels = true; break;  // Show value on every bar
       case '--bar-radius': opts.barRadius = parseFloat(next) || 0; i++; break;  // Rounded bar corners in pixels
@@ -461,6 +473,18 @@ function resolveTitleAnchor(opts, fallback = 'start') {
   return allowed.has(opts.titleAlign) ? opts.titleAlign : fallback;
 }
 
+function buildLegendConfig(opts, theme, extra = {}) {
+  return {
+    labelColor: theme.text,
+    titleColor: theme.text,
+    ...(Number.isInteger(opts.legendColumns) && opts.legendColumns > 0 ? { columns: opts.legendColumns } : {}),
+    ...(Number.isFinite(opts.legendLabelLimit) && opts.legendLabelLimit > 0 ? { labelLimit: opts.legendLabelLimit } : {}),
+    ...(opts.legend === 'none' ? { disable: true } : {}),
+    ...(opts.legend && opts.legend !== 'none' ? { orient: opts.legend } : {}),
+    ...extra,
+  };
+}
+
 function applyYPadToValues(values, opts) {
   if (!Array.isArray(values) || values.length === 0 || opts.yPad === undefined || opts.yPad === null || opts.yDomain) {
     return null;
@@ -509,6 +533,7 @@ function buildSpec(opts) {
   const lineWidth = (typeof opts.lineWidth === 'number' && Number.isFinite(opts.lineWidth) && opts.lineWidth > 0) ? opts.lineWidth : 2;
   const pointSize = (typeof opts.pointSize === 'number' && Number.isFinite(opts.pointSize) && opts.pointSize > 0) ? opts.pointSize : 60;
   const barRadius = (typeof opts.barRadius === 'number' && Number.isFinite(opts.barRadius) && opts.barRadius > 0) ? opts.barRadius : 0;
+  const fontFamily = opts.fontFamily || 'Helvetica, Arial, sans-serif';
 
   const linePointConfig = opts.noPoints ? false : { size: pointSize, filled: true };
 
@@ -553,12 +578,12 @@ function buildSpec(opts) {
           type: 'nominal',
           title: opts.xTitle || catField,
           scale: { scheme: opts.colorScheme || (opts.dark ? 'category20' : 'category10') },
-          legend: { labelColor: theme.text, titleColor: theme.text }
+          legend: buildLegendConfig(opts, theme)
         },
         order: { field: valField, type: 'quantitative', sort: 'descending' }
       },
       config: {
-        font: 'Helvetica, Arial, sans-serif',
+        font: fontFamily,
         title: { fontSize: 16, fontWeight: 'bold', color: theme.text },
         view: { stroke: null }
       }
@@ -588,7 +613,7 @@ function buildSpec(opts) {
           type: 'nominal',
           title: opts.xTitle || catField,
           scale: { scheme: opts.colorScheme || (opts.dark ? 'category20' : 'category10') },
-          legend: { labelColor: theme.text, titleColor: theme.text }
+          legend: buildLegendConfig(opts, theme)
         },
         order: { field: valField, type: 'quantitative', sort: 'descending' }
       };
@@ -642,15 +667,11 @@ function buildSpec(opts) {
           type: 'quantitative',
           title: valueField,
           scale: { scheme: colorScheme },
-          legend: { 
-            labelColor: theme.text, 
-            titleColor: theme.text,
-            gradientLength: 150
-          }
+          legend: buildLegendConfig(opts, theme, { gradientLength: 150 })
         }
       },
       config: {
-        font: 'Helvetica, Arial, sans-serif',
+        font: fontFamily,
         title: { fontSize: 16, fontWeight: 'bold', color: theme.text },
         axis: { 
           labelFontSize: 11, 
@@ -748,7 +769,7 @@ function buildSpec(opts) {
         }
       ],
       config: {
-        font: 'Helvetica, Arial, sans-serif',
+        font: fontFamily,
         title: { fontSize: 16, fontWeight: 'bold', color: theme.text },
         axis: { 
           labelFontSize: 11, 
@@ -810,7 +831,7 @@ function buildSpec(opts) {
         }
       },
       config: {
-        font: 'Helvetica, Arial, sans-serif',
+        font: fontFamily,
         title: { fontSize: 16, fontWeight: 'bold', color: theme.text },
         axis: { 
           labelFontSize: 11, 
@@ -820,10 +841,7 @@ function buildSpec(opts) {
           titleColor: theme.text,
           domainColor: theme.grid
         },
-        legend: {
-          labelColor: theme.text,
-          titleColor: theme.text
-        },
+        legend: buildLegendConfig(opts, theme),
         view: { stroke: null }
       }
     };
@@ -866,7 +884,7 @@ function buildSpec(opts) {
         }
       },
       config: {
-        font: 'Helvetica, Arial, sans-serif',
+        font: fontFamily,
         title: { fontSize: 16, fontWeight: 'bold', color: theme.text },
         axis: { 
           labelFontSize: 11, 
@@ -876,10 +894,7 @@ function buildSpec(opts) {
           titleColor: theme.text,
           domainColor: theme.grid
         },
-        legend: {
-          labelColor: theme.text,
-          titleColor: theme.text
-        },
+        legend: buildLegendConfig(opts, theme),
         view: { stroke: null }
       }
     };
@@ -978,7 +993,7 @@ function buildSpec(opts) {
         scale: { y: 'independent' }  // Key: independent Y scales for dual axis
       },
       config: {
-        font: 'Helvetica, Arial, sans-serif',
+        font: fontFamily,
         title: { fontSize: 16, fontWeight: 'bold', color: theme.text },
         axis: { 
           labelFontSize: 11, 
@@ -1094,7 +1109,7 @@ function buildSpec(opts) {
         scale: { y: 'independent' }
       },
       config: {
-        font: 'Helvetica, Arial, sans-serif',
+        font: fontFamily,
         title: { fontSize: 16, fontWeight: 'bold', color: theme.text },
         axis: {
           labelFontSize: 11,
@@ -1600,7 +1615,7 @@ function buildSpec(opts) {
     data: { values: opts.data },
     layer: layers,
     config: {
-      font: 'Helvetica, Arial, sans-serif',
+      font: fontFamily,
       title: { fontSize: 16, fontWeight: 'bold', color: theme.text },
       axis: { 
         labelFontSize: 11, 
@@ -1611,12 +1626,7 @@ function buildSpec(opts) {
         domainColor: theme.grid
       },
       view: { stroke: null },
-      legend: { 
-        labelColor: theme.text, 
-        titleColor: theme.text,
-        ...(opts.legend === 'none' ? { disable: true } : {}),
-        ...(opts.legend && opts.legend !== 'none' ? { orient: opts.legend } : {})
-      }
+      legend: buildLegendConfig(opts, theme)
     }
   };
   
@@ -1699,7 +1709,7 @@ async function main() {
   // Apply --x-label-limit to avoid unreadable/truncated category labels overflowing the chart
   if (opts.xLabelLimit !== undefined && Number.isFinite(opts.xLabelLimit) && opts.xLabelLimit > 0) {
     walkEncodings(spec, (enc) => {
-      if (enc && enc.x) {
+      if (enc && enc.x && enc.x.field) {
         if (!enc.x.axis) enc.x.axis = {};
         enc.x.axis.labelLimit = opts.xLabelLimit;
       }
@@ -1709,9 +1719,41 @@ async function main() {
   // Apply --y-label-limit to keep long category/value labels from overflowing the chart
   if (opts.yLabelLimit !== undefined && Number.isFinite(opts.yLabelLimit) && opts.yLabelLimit > 0) {
     walkEncodings(spec, (enc) => {
-      if (enc && enc.y) {
+      if (enc && enc.y && enc.y.field) {
         if (!enc.y.axis) enc.y.axis = {};
         enc.y.axis.labelLimit = opts.yLabelLimit;
+      }
+    });
+  }
+
+  // Apply configurable axis tick density
+  if (opts.xTicks !== undefined && Number.isInteger(opts.xTicks) && opts.xTicks > 0) {
+    walkEncodings(spec, (enc) => {
+      if (enc && enc.x && enc.x.field) {
+        if (!enc.x.axis) enc.x.axis = {};
+        enc.x.axis.tickCount = opts.xTicks;
+      }
+    });
+  }
+
+  if (opts.yTicks !== undefined && Number.isInteger(opts.yTicks) && opts.yTicks > 0) {
+    walkEncodings(spec, (enc) => {
+      if (enc && enc.y && enc.y.field) {
+        if (!enc.y.axis) enc.y.axis = {};
+        if (enc.y.axis.orient !== 'right') {
+          enc.y.axis.tickCount = opts.yTicks;
+        }
+      }
+    });
+  }
+
+  if (opts.y2Ticks !== undefined && Number.isInteger(opts.y2Ticks) && opts.y2Ticks > 0) {
+    walkEncodings(spec, (enc) => {
+      if (enc && enc.y && enc.y.field) {
+        if (!enc.y.axis) enc.y.axis = {};
+        if (enc.y.axis.orient === 'right') {
+          enc.y.axis.tickCount = opts.y2Ticks;
+        }
       }
     });
   }
@@ -1751,7 +1793,7 @@ async function main() {
       const fontSize = Math.max(12, Math.round(h * 0.035));
       const escaped = opts.watermark.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       const wmSvg = `<svg width="${w}" height="${h}">
-        <text x="${w - 10}" y="${h - 10}" font-family="sans-serif" font-size="${fontSize}"
+        <text x="${w - 10}" y="${h - 10}" font-family="${opts.fontFamily || 'sans-serif'}" font-size="${fontSize}"
               fill="${opts.dark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.15)'}"
               text-anchor="end">${escaped}</text>
       </svg>`;

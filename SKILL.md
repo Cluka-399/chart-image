@@ -130,6 +130,9 @@ Sparklines are 80x20 by default, transparent, no axes.
 | `--series-order CSV` | Explicit series/category order for multi-series and stacked legends (e.g. `Critical,High,Medium`) | data order |
 | `--x-label-limit PX` | Max pixel width for X axis labels before Vega truncates them | auto |
 | `--y-label-limit PX` | Max pixel width for Y axis labels before Vega truncates them | auto |
+| `--x-ticks N` | Target X-axis tick count for dense or sparse charts | auto |
+| `--y-ticks N` | Target primary/left Y-axis tick count for dense or sparse charts | auto |
+| `--y2-ticks N` | Target secondary/right Y-axis tick count for dual-axis and volume charts | auto |
 | `--y-domain` | Y scale as "min,max" | auto |
 | `--y-pad` | Add vertical padding as a fraction of range (e.g. `0.1` = 10%) | 0 |
 
@@ -139,11 +142,14 @@ Sparklines are 80x20 by default, transparent, no axes.
 | `--color` | Line/bar color | #e63946 |
 | `--dark` | Dark mode theme | false |
 | `--svg` | Output SVG instead of PNG | false |
+| `--font-family` | CSS font-family string for chart text/legend/title theming | Helvetica, Arial, sans-serif |
 | `--no-points` | Hide point markers on line charts | false |
 | `--line-width N` | Set line thickness in pixels for line charts | 2 |
 | `--point-size N` | Set point marker size for line/point charts | 60 |
 | `--bar-radius N` | Round bar corners in pixels for bar-based charts | 0 |
 | `--color-scheme` | Vega color scheme (category10, viridis, etc.) | - |
+| `--legend-columns N` | Wrap legend entries into N columns for crowded multi-series/pie charts | auto |
+| `--legend-label-limit PX` | Max pixel width for legend labels before Vega truncates them | auto |
 
 ### Alert/Monitor Options
 | Option | Description | Default |
@@ -341,4 +347,4 @@ node chart.mjs --type line --data '...' --output /data/clawd/tmp/my-chart.png
 - Auto-use `--dark` between 20:00-07:00 Israel time
 
 ---
-*Updated: 2026-03-20 - Added `--y2-format` so dual-axis and volume-overlay charts can format the right axis independently (percent, dollar, compact, custom d3-format); version bumped to 2.6.17*
+*Updated: 2026-03-27 - Added `--y2-ticks` so dual-axis + volume-overlay charts can tune the right-axis tick density independently; version bumped to 2.6.22*
