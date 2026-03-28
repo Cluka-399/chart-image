@@ -194,6 +194,45 @@ Omit `--dark` for light mode (reports, emails, light UIs):
 
 ---
 
+## Font Families
+
+Use `--font-family` with any CSS font-family stack Vega can resolve.
+
+**Safest generic families:**
+- `sans-serif`
+- `serif`
+- `monospace`
+- `system-ui`
+
+**Recommended stacks:**
+
+```bash
+# Brand / product sans
+--font-family "Inter, Helvetica, Arial, sans-serif"
+
+# Editorial / report serif
+--font-family "Georgia, Times New Roman, serif"
+
+# Terminal / dashboard monospace
+--font-family "JetBrains Mono, SFMono-Regular, Consolas, monospace"
+```
+
+**Example:**
+```bash
+node scripts/chart.mjs --type bar \
+  --data '[{"month":"Jan","value":12},{"month":"Feb","value":18},{"month":"Mar","value":15},{"month":"Apr","value":22}]' \
+  --x-field month --y-field value --x-sort none \
+  --title "Georgia / serif example" \
+  --subtitle "--font-family \"Georgia, serif\"" \
+  --font-family "Georgia, serif" --dark --show-values
+```
+
+![Font family example](readme-assets/framed-font-family.png)
+
+**Note:** specific fonts like `Inter`, `Arial`, `Georgia`, or `JetBrains Mono` only work if they exist on the host. If not, Vega falls back to the next font in the stack.
+
+---
+
 ## Alert-Style Charts
 
 Built-in options for monitoring and alerting use cases:
@@ -235,8 +274,10 @@ echo '[{"x":"A","y":1},{"x":"B","y":2}]' | node scripts/chart.mjs --output out.p
 | `--output` | Output file path | `chart.png` |
 | `--title` | Chart title | — |
 | `--subtitle` | Subtitle below title | — |
+| `--title-align` | Title alignment: `start`, `middle`, `end` | `start` |
 | `--width` | Width in px | `600` |
 | `--height` | Height in px | `300` |
+| `--output-size` | Platform preset: `twitter`, `discord`, `slack`, `linkedin`, `bluesky`, `youtube`, `instagram`, `portrait`, `story`, `thumbnail`, `wide`, `square` | — |
 | `--dark` | Dark theme | `false` |
 | `--svg` | Output SVG instead of PNG | `false` |
 
@@ -273,6 +314,7 @@ echo '[{"x":"A","y":1},{"x":"B","y":2}]' | node scripts/chart.mjs --output out.p
 | `--focus-change` | Zoom Y to highlight change |
 | `--focus-recent N` | Show last N points only |
 | `--show-values` | Label min/max peaks |
+| `--last-value` | Label the final data point value |
 | `--annotations` | JSON array of event markers: `[{"x":"14:00","label":"News"}]` |
 
 ---

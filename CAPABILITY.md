@@ -8,87 +8,46 @@ Skill: chart-image
 ### lineChart
 
 **Input:**
-- data: Array of data points (objects with x/y, time/value, or time/price fields)
-- title: (optional) Chart title
-- groupBy: (optional) Field to group by for multi-series charts
-- options: (optional) Additional options
-  - dark: boolean - Use dark theme
-  - focusRecent: number - Zoom to last N data points
-  - showChange: boolean - Show percentage change annotation
-  - showValues: boolean - Show value labels on points
+- data: array of chart points
+- title: optional chart title
+- groupBy: optional field for multi-series charts
+- options: optional rendering flags such as `dark`, `focusRecent`, `showChange`, `showValues`
 
 **How to fulfill:**
-```bash
-# Write data to temp file
-echo '${JSON.stringify(data)}' > /tmp/chart-data.json
-
-# Generate chart
-node /data/clawd/skills/chart-image/scripts/chart.mjs \
-  --type line \
-  --data "$(cat /tmp/chart-data.json)" \
-  --title "${title}" \
-  ${options.dark ? '--dark' : ''} \
-  ${options.focusRecent ? '--focus-recent ' + options.focusRecent : ''} \
-  ${options.showChange ? '--show-change' : ''} \
-  ${options.showValues ? '--show-values' : ''} \
-  --output /tmp/chart-${Date.now()}.png
-```
-
-**Output:** `{ path: string }` - Path to the generated PNG file
-
----
+- Invoke `scripts/chart.mjs` with structured CLI arguments, not by interpolating untrusted text into a shell command.
+- Pass chart data through a JSON argument or a trusted temporary file created by the runtime/tooling layer.
+- Map supported options to the corresponding chart flags (`--dark`, `--focus-recent`, `--show-change`, `--show-values`).
+- Return the generated chart image through the caller's normal file/attachment flow.
 
 ### barChart
 
 **Input:**
-- data: Array of objects with label and value fields
-- title: (optional) Chart title
-- options: (optional) Additional options
-  - dark: boolean - Use dark theme
-  - showValues: boolean - Show value labels on bars
+- data: array of objects with label/value-style fields
+- title: optional chart title
+- options: optional rendering flags such as `dark` and `showValues`
 
 **How to fulfill:**
-```bash
-# Write data to temp file  
-echo '${JSON.stringify(data)}' > /tmp/chart-data.json
-
-# Generate chart
-node /data/clawd/skills/chart-image/scripts/chart.mjs \
-  --type bar \
-  --data "$(cat /tmp/chart-data.json)" \
-  --title "${title}" \
-  ${options.dark ? '--dark' : ''} \
-  ${options.showValues ? '--show-values' : ''} \
-  --output /tmp/chart-${Date.now()}.png
-```
-
-**Output:** `{ path: string }` - Path to the generated PNG file
-
----
+- Invoke `scripts/chart.mjs` with structured CLI arguments, not shell-built strings.
+- Provide the data as JSON or via a trusted temporary file.
+- Map supported options to the corresponding chart flags.
+- Return the generated chart image through the caller's normal file/attachment flow.
 
 ### areaChart
 
 **Input:**
-- data: Array of data points
-- title: (optional) Chart title
-- options: (optional) Same as lineChart
+- data: array of chart points
+- title: optional chart title
+- options: optional rendering flags similar to `lineChart`
 
 **How to fulfill:**
-```bash
-node /data/clawd/skills/chart-image/scripts/chart.mjs \
-  --type area \
-  --data '${JSON.stringify(data)}' \
-  --title "${title}" \
-  --output /tmp/chart-${Date.now()}.png
-```
+- Invoke `scripts/chart.mjs` with structured CLI arguments.
+- Provide the data as JSON or via a trusted temporary file.
+- Map supported options to the corresponding chart flags.
+- Return the generated chart image through the caller's normal file/attachment flow.
 
-**Output:** `{ path: string }` - Path to the generated PNG file
+## Safety notes
 
----
-
-## Notes
-
-- All methods output PNG images to /tmp by default
-- Use `--dark` flag between 20:00-07:00 local time for better night-mode visuals
-- For time series, data points should have `time` or `x` field in ISO format or readable string
-- The skill uses Vega-Lite under the hood - see SKILL.md for full options
+- Do not build shell commands with string interpolation around user-controlled JSON, titles, labels, or paths.
+- Prefer argv-style process execution over `sh -c`, command substitution, or inline `echo '...json...'` patterns.
+- Treat `--output`, `--spec`, and file-based inputs as trusted/runtime-controlled parameters rather than free-form user text.
+- Use platform-native attachment/message tools to deliver the image after generation.

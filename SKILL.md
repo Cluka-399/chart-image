@@ -143,6 +143,8 @@ Sparklines are 80x20 by default, transparent, no axes.
 | `--dark` | Dark mode theme | false |
 | `--svg` | Output SVG instead of PNG | false |
 | `--font-family` | CSS font-family string for chart text/legend/title theming | Helvetica, Arial, sans-serif |
+
+**Font examples:** `"Inter, Helvetica, Arial, sans-serif"`, `"Georgia, serif"`, `"JetBrains Mono, Consolas, monospace"`
 | `--no-points` | Hide point markers on line charts | false |
 | `--line-width N` | Set line thickness in pixels for line charts | 2 |
 | `--point-size N` | Set point marker size for line/point charts | 60 |
