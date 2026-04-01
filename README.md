@@ -198,6 +198,8 @@ Omit `--dark` for light mode (reports, emails, light UIs):
 
 Use `--font-family` with any CSS font-family stack Vega can resolve.
 
+Need more control over headings? `--title-size`, `--subtitle-size`, `--title-color`, and `--subtitle-color` let you tune chart title typography without editing the Vega spec. Need softer dashboard gridlines? `--grid-dash 4,2` adds custom dashed grid patterns without touching the Vega spec either.
+
 **Safest generic families:**
 - `sans-serif`
 - `serif`
@@ -306,6 +308,7 @@ echo '[{"x":"A","y":1},{"x":"B","y":2}]' | node scripts/chart.mjs --output out.p
 | `--series-field` | Field to split into multiple lines |
 | `--stacked` | Stack bars/areas |
 | `--color-field` | Field for color encoding |
+| `--series-order CSV` | Explicit series/category order for multi-series legends and stacked-bar legend/stack order |
 
 ### Annotations
 | Option | Description |

@@ -58,6 +58,13 @@ BASIC OPTIONS:
   --title       Chart title
   --subtitle    Chart subtitle
   --title-align Title alignment: start, middle, end (default: start)
+  --title-size N      Title font size in px
+  --subtitle-size N   Subtitle font size in px
+  --title-weight W    Title font weight (normal, bold, 100-900)
+  --subtitle-weight W Subtitle font weight (normal, bold, 100-900)
+  --title-color COLOR Title text color override
+  --subtitle-color COLOR Subtitle text color override
+  --grid-dash A,B    Gridline dash pattern (e.g. 4,2)
   --width       Chart width in pixels (default: 600)
   --height      Chart height in pixels (default: 300)
   --dark        Dark mode (night-friendly colors)
@@ -71,6 +78,7 @@ DATA FIELDS:
   --x-type      X axis type: ordinal, temporal, quantitative
   --x-format    X axis label format (d3-time-format for temporal, e.g. "%b %d", "%H:%M")
   --x-sort      X axis order: ascending, descending, none (preserve input order)
+  --series-order CSV  Explicit series/category order for multi-series + stacked legends/stacks
   --x-label-limit PX  Max pixel width for X axis labels before Vega truncates them
   --y-label-limit PX  Max pixel width for Y axis labels before Vega truncates them
   --x-ticks N    Target tick count for the X axis
@@ -198,7 +206,7 @@ function parseArgs(args) {
     
     switch (arg) {
       case '--help': case '-h': showHelp(); break;
-      case '--version': case '-v': console.log('chart.mjs v2.6.23'); process.exit(0); break;
+      case '--version': case '-v': console.log('chart.mjs v2.6.28'); process.exit(0); break;
       case '--type': opts.type = next; i++; break;
       case '--data': opts.data = parseDataArg(next); i++; break;
       case '--spec': opts.specFile = next; i++; break;
@@ -254,6 +262,13 @@ function parseArgs(args) {
       case '--y-format': opts.yFormat = next; i++; break;  // percent, dollar, compact, or d3-format string
       case '--subtitle': opts.subtitle = next; i++; break;
       case '--title-align': opts.titleAlign = next; i++; break;
+      case '--title-size': opts.titleSize = parseFloat(next); i++; break;
+      case '--subtitle-size': opts.subtitleSize = parseFloat(next); i++; break;
+      case '--title-weight': opts.titleWeight = next; i++; break;
+      case '--subtitle-weight': opts.subtitleWeight = next; i++; break;
+      case '--title-color': opts.titleColor = next; i++; break;
+      case '--subtitle-color': opts.subtitleColor = next; i++; break;
+      case '--grid-dash': opts.gridDash = next.split(',').map(v => parseFloat(v.trim())).filter(v => Number.isFinite(v) && v >= 0); i++; break;
       case '--no-grid': opts.noGrid = true; break;
       case '--legend': opts.legend = next; i++; break;  // top, bottom, left, right, none
       case '--legend-columns': opts.legendColumns = parseInt(next); i++; break;  // Wrap legend entries into columns
@@ -473,6 +488,37 @@ function resolveTitleAnchor(opts, fallback = 'start') {
   return allowed.has(opts.titleAlign) ? opts.titleAlign : fallback;
 }
 
+function resolveFontWeight(value) {
+  if (value === undefined || value === null || value === '') return undefined;
+  const normalized = String(value).trim();
+  if (!normalized) return undefined;
+  const named = new Set(['normal', 'bold', 'bolder', 'lighter']);
+  if (named.has(normalized)) return normalized;
+  const numeric = Number(normalized);
+  if (Number.isFinite(numeric) && numeric >= 100 && numeric <= 900) return numeric;
+  return undefined;
+}
+
+function buildChartTitle(opts, theme, fallback = 'start') {
+  if (!opts.title) return undefined;
+  const titleWeight = resolveFontWeight(opts.titleWeight);
+  const subtitleWeight = resolveFontWeight(opts.subtitleWeight);
+  const title = {
+    text: opts.title,
+    anchor: resolveTitleAnchor(opts, fallback),
+    color: opts.titleColor || theme.text,
+    ...(Number.isFinite(opts.titleSize) && opts.titleSize > 0 ? { fontSize: opts.titleSize } : {}),
+    ...(titleWeight !== undefined ? { fontWeight: titleWeight } : {}),
+  };
+  if (opts.subtitle) {
+    title.subtitle = opts.subtitle;
+    title.subtitleColor = opts.subtitleColor || theme.grid;
+    title.subtitleFontSize = Number.isFinite(opts.subtitleSize) && opts.subtitleSize > 0 ? opts.subtitleSize : 12;
+    if (subtitleWeight !== undefined) title.subtitleFontWeight = subtitleWeight;
+  }
+  return title;
+}
+
 function buildLegendConfig(opts, theme, extra = {}) {
   return {
     labelColor: theme.text,
@@ -483,6 +529,18 @@ function buildLegendConfig(opts, theme, extra = {}) {
     ...(opts.legend && opts.legend !== 'none' ? { orient: opts.legend } : {}),
     ...extra,
   };
+}
+
+function buildOrderedNominalScale(opts, fallbackScheme = 'category10') {
+  const scale = { scheme: opts.colorScheme || fallbackScheme };
+  if (Array.isArray(opts.seriesOrder) && opts.seriesOrder.length > 0) {
+    scale.domain = opts.seriesOrder;
+  }
+  return scale;
+}
+
+function buildOrderedNominalSort(opts) {
+  return Array.isArray(opts.seriesOrder) && opts.seriesOrder.length > 0 ? opts.seriesOrder : undefined;
 }
 
 function applyYPadToValues(values, opts) {
@@ -590,7 +648,7 @@ function buildSpec(opts) {
     };
     
     if (opts.title) {
-      pieSpec.title = { text: opts.title, anchor: resolveTitleAnchor(opts, 'middle'), color: theme.text };
+      pieSpec.title = buildChartTitle(opts, theme, 'middle');
     }
     
     // Add labels if showValues
@@ -682,7 +740,7 @@ function buildSpec(opts) {
     };
     
     if (opts.title) {
-      heatmapSpec.title = { text: opts.title, anchor: resolveTitleAnchor(opts, 'start'), color: theme.text };
+      heatmapSpec.title = buildChartTitle(opts, theme, 'start');
     }
     
     // Add value labels if showValues
@@ -784,7 +842,7 @@ function buildSpec(opts) {
     };
     
     if (opts.title) {
-      candleSpec.title = { text: opts.title, anchor: resolveTitleAnchor(opts, 'start'), color: theme.text };
+      candleSpec.title = buildChartTitle(opts, theme, 'start');
     }
     
     if (opts.yDomain || opts.yScale || opts.zeroBaseline) {
@@ -827,8 +885,18 @@ function buildSpec(opts) {
           field: opts.colorField,
           type: 'nominal',
           title: opts.colorField,
-          scale: { scheme: opts.colorScheme || 'category10' }
-        }
+          scale: buildOrderedNominalScale(opts, 'category10'),
+          ...(buildOrderedNominalSort(opts) ? { sort: buildOrderedNominalSort(opts) } : {})
+        },
+        ...(buildOrderedNominalSort(opts)
+          ? {
+              order: {
+                field: opts.colorField,
+                type: 'nominal',
+                sort: buildOrderedNominalSort(opts)
+              }
+            }
+          : {})
       },
       config: {
         font: fontFamily,
@@ -847,7 +915,7 @@ function buildSpec(opts) {
     };
     
     if (opts.title) {
-      stackedSpec.title = { text: opts.title, anchor: resolveTitleAnchor(opts, 'start'), color: theme.text };
+      stackedSpec.title = buildChartTitle(opts, theme, 'start');
     }
     
     return stackedSpec;
@@ -880,7 +948,8 @@ function buildSpec(opts) {
           field: opts.seriesField,
           type: 'nominal',
           title: opts.seriesField,
-          scale: { scheme: opts.colorScheme || 'category10' }
+          scale: buildOrderedNominalScale(opts, 'category10'),
+          ...(buildOrderedNominalSort(opts) ? { sort: buildOrderedNominalSort(opts) } : {})
         }
       },
       config: {
@@ -900,7 +969,7 @@ function buildSpec(opts) {
     };
     
     if (opts.title) {
-      multiSpec.title = { text: opts.title, anchor: resolveTitleAnchor(opts, 'start'), color: theme.text };
+      multiSpec.title = buildChartTitle(opts, theme, 'start');
     }
     
     return multiSpec;
@@ -1030,7 +1099,7 @@ function buildSpec(opts) {
     }
     
     if (opts.title) {
-      volumeSpec.title = { text: opts.title, anchor: resolveTitleAnchor(opts, 'start'), color: theme.text };
+      volumeSpec.title = buildChartTitle(opts, theme, 'start');
     }
     
     return volumeSpec;
@@ -1123,12 +1192,7 @@ function buildSpec(opts) {
     };
     
     if (opts.title) {
-      dualSpec.title = {
-        text: opts.title,
-        anchor: resolveTitleAnchor(opts, 'start'),
-        color: theme.text,
-        ...(opts.subtitle ? { subtitle: opts.subtitle, subtitleColor: theme.grid, subtitleFontSize: 12 } : {})
-      };
+      dualSpec.title = buildChartTitle(opts, theme, 'start');
     }
     
     return dualSpec;
@@ -1621,6 +1685,7 @@ function buildSpec(opts) {
         labelFontSize: 11, 
         titleFontSize: 13, 
         gridColor: theme.grid,
+        ...(Array.isArray(opts.gridDash) && opts.gridDash.length > 0 ? { gridDash: opts.gridDash } : {}),
         labelColor: theme.text,
         titleColor: theme.text,
         domainColor: theme.grid
@@ -1631,12 +1696,7 @@ function buildSpec(opts) {
   };
   
   if (opts.title) {
-    spec.title = {
-      text: opts.title,
-      anchor: resolveTitleAnchor(opts, 'start'),
-      color: theme.text,
-      ...(opts.subtitle ? { subtitle: opts.subtitle, subtitleColor: theme.grid, subtitleFontSize: 12 } : {})
-    };
+    spec.title = buildChartTitle(opts, theme, 'start');
   }
   
   return spec;

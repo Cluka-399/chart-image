@@ -143,6 +143,14 @@ Sparklines are 80x20 by default, transparent, no axes.
 | `--dark` | Dark mode theme | false |
 | `--svg` | Output SVG instead of PNG | false |
 | `--font-family` | CSS font-family string for chart text/legend/title theming | Helvetica, Arial, sans-serif |
+| `--title-align` | Title alignment: `start`, `middle`, `end` | start |
+| `--title-size N` | Title font size override in px | auto |
+| `--subtitle-size N` | Subtitle font size override in px | auto |
+| `--title-weight W` | Title font weight override (`normal`, `bold`, `100`-`900`) | auto |
+| `--subtitle-weight W` | Subtitle font weight override (`normal`, `bold`, `100`-`900`) | auto |
+| `--title-color` | Title text color override | theme text |
+| `--subtitle-color` | Subtitle text color override | theme grid |
+| `--grid-dash A,B` | Dash pattern for gridlines (for example `4,2`) | solid |
 
 **Font examples:** `"Inter, Helvetica, Arial, sans-serif"`, `"Georgia, serif"`, `"JetBrains Mono, Consolas, monospace"`
 | `--no-points` | Hide point markers on line charts | false |
@@ -296,6 +304,8 @@ Add context below the title:
 node chart.mjs --title "MOLT Price" --subtitle "20,668 MOLT held" --data '[...]' --output molt.png
 ```
 
+`--subtitle` works across standard charts plus pie/donut, heatmap, candlestick, stacked, multi-series, volume-overlay, and dual-axis layouts.
+
 ## Theme Selection
 
 Use `--dark` for dark mode. Auto-select based on time:
@@ -349,4 +359,4 @@ node chart.mjs --type line --data '...' --output /data/clawd/tmp/my-chart.png
 - Auto-use `--dark` between 20:00-07:00 Israel time
 
 ---
-*Updated: 2026-03-27 - Added `--y2-ticks` so dual-axis + volume-overlay charts can tune the right-axis tick density independently; version bumped to 2.6.22*
+*Updated: 2026-04-01 - `--series-order` now actually drives multi-series legend order and stacked-bar legend/stack order; version bumped to 2.6.28*
