@@ -156,6 +156,7 @@ node scripts/chart.mjs --type bar \
 ### More Chart Types
 
 - **`point`** — Scatter plot
+- **`histogram`** — Binned quantitative distribution chart
 - **`candlestick`** — OHLC financial charts (`--open-field`, `--high-field`, `--low-field`, `--close-field`)
 - **`heatmap`** — Grid visualization (`--color-value-field`, `--color-scheme viridis`)
 - **Stacked bars** — `--type bar --stacked --color-field category`
@@ -271,7 +272,7 @@ echo '[{"x":"A","y":1},{"x":"B","y":2}]' | node scripts/chart.mjs --output out.p
 ### Core
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--type` | `line`, `bar`, `area`, `point`, `pie`, `donut`, `candlestick`, `heatmap` | `line` |
+| `--type` | `line`, `bar`, `area`, `point`, `histogram`, `pie`, `donut`, `candlestick`, `heatmap` | `line` |
 | `--data` | JSON array or shorthand `key:val,...` | stdin |
 | `--output` | Output file path | `chart.png` |
 | `--title` | Chart title | — |
